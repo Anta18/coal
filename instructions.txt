@@ -1,0 +1,10 @@
+        ADDI R3, R0, 0
+        ADDI R4, R0, 5
+        ADDI R5, R0, 0
+        LD   R6, 0(R5)
+        HAM  R7, R6
+        ADD  R3, R3, R7
+        ADDI R5, R5, 1     
+        SUBI R4, R4, 1
+        BPL  R4, -6
+        HALT
