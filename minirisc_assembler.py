@@ -10,6 +10,7 @@ REG_RE = re.compile(r"^(R|r)(1[0-5]|[0-9])$")
 COMMENT_RE = re.compile(r"(;|#|//).*?$")
 LABEL_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$")
 
+
 def parse_int(token: str) -> int:
     s = token.replace("_", "").strip()
     neg = s.startswith("-")
@@ -23,6 +24,7 @@ def parse_int(token: str) -> int:
         val = int(s, 10)
     return -val if neg else val
 
+
 def reg_id(tok: str) -> int:
     m = REG_RE.match(tok.strip())
     if not m:
@@ -32,10 +34,12 @@ def reg_id(tok: str) -> int:
         raise ValueError(f"Register out of range '{tok}' (0..15).")
     return idx
 
+
 def fit_unsigned(x: int, bits: int) -> int:
-    if x < 0 or x > (1 << bits) - 1:
+    if x > (1 << bits) - 1:
         raise ValueError(f"Unsigned {bits}-bit immediate out of range: {x}")
     return x
+
 
 def fit_signed(x: int, bits: int) -> int:
     lo, hi = -(1 << (bits - 1)), (1 << (bits - 1)) - 1
@@ -43,26 +47,27 @@ def fit_signed(x: int, bits: int) -> int:
         raise ValueError(f"Signed {bits}-bit immediate out of range: {x}")
     return x & ((1 << bits) - 1)
 
+
 def tokenize_operands(op_str: str) -> List[str]:
-    toks = [t.strip() for t in op_str.split(",") if t.strip() != ""]
-    return toks
+    return [t.strip() for t in op_str.split(",") if t.strip() != ""]
+
 
 R_FUNCTS = {
-    "ADD":  0b001000,
-    "SUB":  0b001001,
-    "INC":  0b001010,
-    "DEC":  0b001011,
-    "SLT":  0b001100,
-    "SGT":  0b001101,
-    "AND":  0b010000,
-    "OR":   0b010001,
-    "XOR":  0b010010,
-    "NOR":  0b010011,
-    "NOT":  0b010100,
-    "SL":   0b011000,
-    "SRL":  0b011001,
-    "SRA":  0b011010,
-    "HAM":  0b100000,
+    "ADD": 0b001000,
+    "SUB": 0b001001,
+    "INC": 0b001010,
+    "DEC": 0b001011,
+    "SLT": 0b001100,
+    "SGT": 0b001101,
+    "AND": 0b010000,
+    "OR": 0b010001,
+    "XOR": 0b010010,
+    "NOR": 0b010011,
+    "NOT": 0b010100,
+    "SL": 0b011000,
+    "SRL": 0b011001,
+    "SRA": 0b011010,
+    "HAM": 0b100000,
     "MOVE": 0b101000,
     "CMOV": 0b101001,
 }
@@ -72,24 +77,25 @@ I_OPCODES = {
     "ADDI": 0b001000,
     "SUBI": 0b001001,
     "ANDI": 0b010000,
-    "ORI":  0b010001,
+    "ORI": 0b010001,
     "XORI": 0b010010,
     "SLAI": 0b011000,
     "SRLI": 0b011001,
     "SRAI": 0b011010,
-    "LUI":  0b100001,
-    "LD":   0b101010,
-    "ST":   0b101011,
-    "BMI":  0b110001,
-    "BPL":  0b110010,
-    "BZ":   0b110011,
-    "SLI":  0b011000,
+    "LUI": 0b100001,
+    "LD": 0b101010,
+    "ST": 0b101011,
+    "BMI": 0b110001,
+    "BPL": 0b110010,
+    "BZ": 0b110011,
+    "SLI": 0b011000,
 }
 
-J_OPCODES = { "BR": 0b110000 }
-PC_OPCODES = { "HALT": 0b111000, "NOP": 0b111001 }
+J_OPCODES = {"BR": 0b110000}
+PC_OPCODES = {"HALT": 0b111000, "NOP": 0b111001}
 
 ALL_MNEMONICS = set(R_FUNCTS) | set(I_OPCODES) | set(J_OPCODES) | set(PC_OPCODES)
+
 
 @dataclass
 class AsmLine:
@@ -100,9 +106,6 @@ class AsmLine:
     raw: str
     line_no: int
 
-REG_RE = re.compile(r"^(R|r)(1[0-5]|[0-9])$")
-COMMENT_RE = re.compile(r"(;|#|//).*?$")
-LABEL_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$")
 
 def preprocess(lines: List[str]) -> List[str]:
     out = []
@@ -110,6 +113,7 @@ def preprocess(lines: List[str]) -> List[str]:
         ln = COMMENT_RE.sub("", ln)
         out.append(ln.rstrip("\n"))
     return out
+
 
 def pass1(lines: List[str], base_addr: int = 0):
     pc = base_addr
@@ -136,10 +140,20 @@ def pass1(lines: List[str], base_addr: int = 0):
         ops_str = parts[1] if len(parts) > 1 else ""
         if mnemonic not in ALL_MNEMONICS:
             raise ValueError(f"Unknown mnemonic '{mnemonic}' on line {i}: {raw}")
-        operands = [t.strip() for t in ops_str.split(",") if t.strip() != ""]
-        parsed.append(AsmLine(addr=pc, text=line, mnemonic=mnemonic, operands=operands, raw=raw, line_no=i))
+        operands = tokenize_operands(ops_str)
+        parsed.append(
+            AsmLine(
+                addr=pc,
+                text=line,
+                mnemonic=mnemonic,
+                operands=operands,
+                raw=raw,
+                line_no=i,
+            )
+        )
         pc += 4
     return parsed, labels
+
 
 def encode_R(mn: str, ops: List[str], line_no: int) -> int:
     funct = R_FUNCTS[mn]
@@ -148,15 +162,24 @@ def encode_R(mn: str, ops: List[str], line_no: int) -> int:
     if mn in ("SL", "SRL", "SRA"):
         if len(ops) != 3:
             raise ValueError(f"{mn} expects 'rd, rs, shamt' (line {line_no}).")
-        rd = reg_id(ops[0]); rs = reg_id(ops[1]); shamt = fit_unsigned(parse_int(ops[2]), 5); rt = 0
+        rd = reg_id(ops[0])
+        rs = reg_id(ops[1])
+        shamt = fit_unsigned(parse_int(ops[2]), 5)
+        rt = 0
     elif mn in ("INC", "DEC", "NOT", "HAM", "MOVE", "CMOV"):
         if len(ops) != 2:
             raise ValueError(f"{mn} expects 'rd, rs' (line {line_no}).")
-        rd = reg_id(ops[0]); rs = reg_id(ops[1]); rt = 0; shamt = 0
+        rd = reg_id(ops[0])
+        rs = reg_id(ops[1])
+        rt = 0
+        shamt = 0
     else:
         if len(ops) != 3:
             raise ValueError(f"{mn} expects 'rd, rs, rt' (line {line_no}).")
-        rd = reg_id(ops[0]); rs = reg_id(ops[1]); rt = reg_id(ops[2]); shamt = 0
+        rd = reg_id(ops[0])
+        rs = reg_id(ops[1])
+        rt = reg_id(ops[2])
+        shamt = 0
     inst = 0
     inst |= (opcode & 0x3F) << 26
     inst |= (rs & 0xF) << 22
@@ -164,17 +187,24 @@ def encode_R(mn: str, ops: List[str], line_no: int) -> int:
     inst |= (rd & 0xF) << 14
     inst |= (shamt & 0x1F) << 9
     inst |= (funct & 0x3F) << 3
-    return inst  # [2:0] unused
+    return inst
+
 
 def parse_mem_operand(tok: str):
-    m = re.match(r"^([+-]?(?:0x[0-9a-fA-F]+|0b[01_]+|\d+))(?:\s*)\((R|r)(1[0-5]|[0-9])\)$", tok.strip())
+    m = re.match(
+        r"^([+-]?(?:0x[0-9a-fA-F]+|0b[01_]+|\d+))(?:\s*)\((R|r)(1[0-5]|[0-9])\)$",
+        tok.strip(),
+    )
     if not m:
         raise ValueError(f"Bad memory operand '{tok}'. Expected like 12(R3) or -8(R0).")
     imm = parse_int(m.group(1))
     rs = int(m.group(3))
     return imm, rs
 
-def encode_I(mn: str, ops: List[str], labels: Dict[str, int], curr_pc: int, line_no: int) -> int:
+
+def encode_I(
+    mn: str, ops: List[str], labels: Dict[str, int], curr_pc: int, line_no: int
+) -> int:
     opcode = I_OPCODES[mn]
     rs = rt = 0
     imm16 = 0
@@ -188,24 +218,37 @@ def encode_I(mn: str, ops: List[str], labels: Dict[str, int], curr_pc: int, line
         if len(ops) != 2:
             raise ValueError(f"{mn} expects 'rs, label|offset' (line {line_no}).")
         rs = reg_id(ops[0])
-        target = ops[1]
+        target = ops[1].strip()
         if target in labels:
             delta_bytes = labels[target] - (curr_pc + 4)
+            if delta_bytes % 4 != 0:
+                raise ValueError(f"Branch target not word-aligned (line {line_no}).")
+            word_off = delta_bytes // 4
+            imm16 = fit_signed(word_off, 16)
         else:
-            delta_bytes = parse_int(target)
-        if delta_bytes % 4 != 0:
-            raise ValueError(f"Branch target not word-aligned (line {line_no}).")
-        word_off = delta_bytes // 4
-        imm16 = fit_signed(word_off, 16)
+            if target.lower().endswith("b"):
+                delta_bytes = parse_int(target[:-1])
+                if delta_bytes % 4 != 0:
+                    raise ValueError(
+                        f"Branch target not word-aligned (line {line_no})."
+                    )
+                word_off = delta_bytes // 4
+                imm16 = fit_signed(word_off, 16)
+            else:
+                word_off = parse_int(target)
+                imm16 = fit_signed(word_off, 16)
         rt = 0
     elif mn == "LUI":
         if len(ops) != 2:
             raise ValueError(f"LUI expects 'rt, imm16' (line {line_no}).")
-        rt = reg_id(ops[0]); rs = 0; imm16 = fit_unsigned(parse_int(ops[1]), 16)
+        rt = reg_id(ops[0])
+        rs = 0
+        imm16 = fit_unsigned(parse_int(ops[1]), 16)
     else:
         if len(ops) != 3:
             raise ValueError(f"{mn} expects 'rt, rs, imm16' (line {line_no}).")
-        rt = reg_id(ops[0]); rs = reg_id(ops[1])
+        rt = reg_id(ops[0])
+        rs = reg_id(ops[1])
         signed = mn in ("ADDI", "SUBI", "SLAI", "SRLI", "SRAI")
         val = parse_int(ops[2])
         imm16 = fit_signed(val, 16) if signed else fit_unsigned(val, 16)
@@ -213,8 +256,9 @@ def encode_I(mn: str, ops: List[str], labels: Dict[str, int], curr_pc: int, line
     inst |= (opcode & 0x3F) << 26
     inst |= (rs & 0xF) << 22
     inst |= (rt & 0xF) << 18
-    inst |= (imm16 & 0xFFFF) << 2  # immediate in bits [17:2]
+    inst |= (imm16 & 0xFFFF) << 2
     return inst
+
 
 def encode_J(mn: str, ops: List[str], labels: Dict[str, int], line_no: int) -> int:
     if mn != "BR":
@@ -223,7 +267,7 @@ def encode_J(mn: str, ops: List[str], labels: Dict[str, int], line_no: int) -> i
         raise ValueError(f"BR expects 'label|absolute' (line {line_no}).")
     opcode = J_OPCODES[mn]
     if ops[0] in labels:
-        target = labels[ops[0]] // 4  # absolute word address
+        target = labels[ops[0]] // 4
     else:
         target = parse_int(ops[0])
     target = fit_unsigned(target, 26)
@@ -232,10 +276,12 @@ def encode_J(mn: str, ops: List[str], labels: Dict[str, int], line_no: int) -> i
     inst |= target & 0x03FFFFFF
     return inst
 
+
 def encode_PC(mn: str) -> int:
     opcode = PC_OPCODES[mn]
     inst = (opcode & 0x3F) << 26
     return inst
+
 
 def encode_one(rec, labels: Dict[str, int]) -> int:
     mn = rec.mnemonic
@@ -249,6 +295,7 @@ def encode_one(rec, labels: Dict[str, int]) -> int:
         return encode_PC(mn)
     raise ValueError(f"Internal: unhandled mnemonic {mn}")
 
+
 def format_word(w: int, kind: str) -> str:
     if kind == "hex32":
         return f"{w:08x}"
@@ -258,6 +305,7 @@ def format_word(w: int, kind: str) -> str:
         return f"{w:032b}"
     else:
         raise ValueError("format must be one of: hex32, HEX32, bin32")
+
 
 def write_output(words, fmt: str, out_path: Path):
     with out_path.open("w") as f:
@@ -270,11 +318,13 @@ def write_output(words, fmt: str, out_path: Path):
         else:
             raise ValueError("Unknown --format. Use memh | hex32 | HEX32 | bin32")
 
+
 def make_listing(recs, words) -> str:
     out = []
     for r, w in zip(recs, words):
         out.append(f"{r.addr:08x}: {w:08X}    {r.raw.strip()}")
     return "\n".join(out)
+
 
 def assemble(text: str, base_addr: int = 0):
     lines = text.splitlines()
@@ -286,15 +336,26 @@ def assemble(text: str, base_addr: int = 0):
     words = [encode_one(r, labels) for r in recs]
     return recs, labels, words
 
+
 def main(argv=None):
     p = argparse.ArgumentParser(description="MiniRISC Assembler")
     p.add_argument("input", type=Path, help="assembly file (.asm)")
-    p.add_argument("-o", "--output", type=Path, help="output file (default: input with .hex)")
-    p.add_argument("--format", default="memh", choices=["memh","hex32","HEX32","bin32"],
-                   help="output format; memh is $readmemh-friendly (default)")
+    p.add_argument(
+        "-o", "--output", type=Path, help="output file (default: input with .hex)"
+    )
+    p.add_argument(
+        "--format",
+        default="memh",
+        choices=["memh", "hex32", "HEX32", "bin32"],
+        help="output format; memh is $readmemh-friendly (default)",
+    )
     p.add_argument("--list", dest="listfile", type=Path, help="optional listing file")
-    p.add_argument("--base-addr", type=lambda x: parse_int(x), default=0,
-                   help="base address (default 0)")
+    p.add_argument(
+        "--base-addr",
+        type=lambda x: parse_int(x),
+        default=0,
+        help="base address (default 0)",
+    )
     args = p.parse_args(argv)
 
     asm_text = args.input.read_text()
@@ -311,17 +372,14 @@ def main(argv=None):
         for k in sorted(labels):
             print(f"  {k}: 0x{labels[k]:08X} ({labels[k]//4})")
 
+
 if __name__ == "__main__":
-    # When run without args, demonstrate with a tiny program like the one in the screenshot.
     if len(sys.argv) == 1:
-        demo = """
-; Program to calculate sum 1+...+5 into R2 and store at MEM[0]
-ADDI R1, R0, 5
+        demo = """ADDI R1, R0, 5
 ADDI R2, R0, 0
-LOOP:
 ADD  R2, R2, R1
 SUBI R1, R1, 1
-BPL  R1, LOOP
+BPL  R1, -3
 ST   R2, 0(R0)
 HALT
 """
